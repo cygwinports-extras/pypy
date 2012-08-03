@@ -1,0 +1,45 @@
+--- origsrc/pypy-pypy-341e1e3821ff/lib-python/2.7/ctypes/__init__.py	2012-06-07 07:24:48.000000000 -0500
++++ src/pypy-pypy-341e1e3821ff/lib-python/2.7/ctypes/__init__.py	2012-08-02 13:42:24.796647700 -0500
+@@ -440,8 +440,6 @@ pydll = LibraryLoader(PyDLL)
+ 
+ if _os.name in ("nt", "ce"):
+     pythonapi = PyDLL("python dll", None, _sys.dllhandle)
+-elif _sys.platform == "cygwin":
+-    pythonapi = PyDLL("libpython%d.%d.dll" % _sys.version_info[:2])
+ else:
+     pythonapi = PyDLL(None)
+ 
+--- origsrc/pypy-pypy-341e1e3821ff/lib-python/2.7/ctypes/util.py	2012-06-07 07:24:48.000000000 -0500
++++ src/pypy-pypy-341e1e3821ff/lib-python/2.7/ctypes/util.py	2012-08-02 13:43:41.528036500 -0500
+@@ -84,6 +84,20 @@ if os.name == "posix" and sys.platform =
+                 continue
+         return None
+ 
++elif sys.platform == "cygwin":
++    def find_library(name):
++        for libdir in ['/usr/lib', '/usr/local/lib']:
++            for libext in ['lib%s.dll.a' % name, 'lib%s.a' % name]:
++                implib = os.path.join(libdir, libext)
++                if not os.path.exists(implib):
++                    continue
++                cmd = "dlltool -I " + implib + " 2>/dev/null"
++                res = os.popen(cmd).read().replace("\n","")
++                if not res:
++                    continue
++                return res
++        return None
++
+ elif os.name == "posix":
+     # Andreas Degert's find functions, using gcc, /sbin/ldconfig, objdump
+     import re, tempfile, errno
+@@ -261,6 +275,10 @@ def test():
+             print cdll.LoadLibrary("libcrypto.dylib")
+             print cdll.LoadLibrary("libSystem.dylib")
+             print cdll.LoadLibrary("System.framework/System")
++        elif sys.platform == "cygwin":
++            print cdll.LoadLibrary("cygbz2-1.dll")
++            print find_library("crypt")
++            print cdll.LoadLibrary("cygcrypt-0.dll")
+         else:
+             print cdll.LoadLibrary("libm.so")
+             print cdll.LoadLibrary("libcrypt.so")

@@ -1,0 +1,23 @@
+--- origsrc/pypy-pypy-341e1e3821ff/pypy/tool/release/package.py	2012-06-07 07:24:48.000000000 -0500
++++ src/pypy-pypy-341e1e3821ff/pypy/tool/release/package.py	2012-08-03 00:05:11.168424500 -0500
+@@ -124,7 +124,7 @@ def package(basedir, name='pypy-nightly'
+         #
+         # 'strip' fun: see https://codespeak.net/issue/pypy-dev/issue587
+         for source, target in binaries:
+-            if sys.platform == 'win32':
++            if sys.platform == 'win32' or sys.platform == 'cygwin':
+                 pass
+             elif sys.platform == 'darwin':
+                 os.system("strip -x " + str(bindir.join(target)))    # ignore errors
+@@ -143,10 +143,8 @@ def package(basedir, name='pypy-nightly'
+             zf.close()
+         else:
+             archive = str(builddir.join(name + '.tar.bz2'))
+-            if sys.platform == 'darwin' or sys.platform.startswith('freebsd'):
++            if sys.platform == 'darwin' or sys.platform.startswith('freebsd') or sys.platform == 'cygwin':
+                 e = os.system('tar --numeric-owner -cvjf ' + archive + " " + name)
+-            elif sys.platform == 'cygwin':
+-                e = os.system('tar --owner=Administrator --group=Administrators --numeric-owner -cvjf ' + archive + " " + name)
+             else:
+                 e = os.system('tar --owner=root --group=root --numeric-owner -cvjf ' + archive + " " + name)
+             if e:

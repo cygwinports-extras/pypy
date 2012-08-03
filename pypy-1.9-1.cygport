@@ -1,0 +1,72 @@
+CATEGORY="Interpreters Python"
+SUMMARY="Alternative Python language interpreter with JIT"
+DESCRIPTION="PyPy is an alternative implementation of the Python
+general-purpose interpreted programming language which includes a
+Just-In-Time compiler. It is mostly compatible with Python 2.7 and most
+pure Python programs and libraries; support for C extensions is
+experimental."
+HOMEPAGE="http://pypy.org/"
+SRC_URI="https://bitbucket.org/pypy/pypy/get/release-${PV}.tar.bz2
+         pypy-config"
+SRC_DIR="pypy-pypy-341e1e3821ff"
+PATCH_URI="
+	http://www.tux.org/~mayer/cygwin/pypy/${SRC_DIR}.patch
+	http://pkgs.fedoraproject.org/cgit/pypy.git/plain/006-always-log-stdout.patch
+	http://pkgs.fedoraproject.org/cgit/pypy.git/plain/007-remove-startup-message.patch
+	http://pkgs.fedoraproject.org/cgit/pypy.git/plain/009-add-PyInt_AsUnsignedLongLongMask.patch
+	1.9-cygwin-ctypes.patch
+	1.9-cygwin-IN.patch
+	1.9-cygwin-package.patch
+"
+
+PKG_NAMES="pypy pypy-test pypy-tkinter"
+pypy_CONTENTS="--exclude=idlelib --exclude=lib-tk --exclude=test --exclude=tests usr/"
+pypy_test_CONTENTS="usr/lib/pypy/*/*/test*/ usr/lib/pypy/*/*/*/test*/"
+pypy_tkinter_CONTENTS="--exclude=test --exclude=tests usr/lib/pypy/*/*/idlelib/ usr/lib/pypy/*/*/lib-tk/"
+
+DEPS_PATH="/usr/lib/pypy/bin"
+
+# does not work properly with this buildsystem
+# almost all created files land in $S, including headers needed during install
+RESTRICT="debuginfo diff"
+
+CFLAGS+=" -O3"
+
+src_compile() {
+	lndirs
+	cd ${S}/pypy/translator/goal
+	### Bootstrap: replace 'pypy' with 'python' in next 2 lines
+	check_prog_req pypy
+	pypy translate.py -Ojit || error "pypy JIT translation failed"
+
+	# create import lib
+	echo "EXPORTS" > ${T}/pypy.def
+	nm -C pypy-c | sed -n -e '/ T _*Py/s/.* //gp' -e '/ [BD] _*Py/s/.* \(.*\)/\1 DATA/gp' >> ${T}/pypy.def
+	dlltool -d ${T}/pypy.def -D pypy-c.exe -l libpython2.7.dll.a
+}
+
+src_install() {
+	cd ${S}/pypy/tool/release
+	dodir /usr/lib
+	${S}/pypy/translator/goal/pypy-c package.py ../../.. pypy pypy-c.exe .
+	tar xf pypy.tar.bz2 -C ${D}/usr/lib/
+	# no need for non-Cygwin platform-specific constants
+	rm -fr ${D}/usr/lib/pypy/lib-python/2.7/plat-[^c]*
+
+	# remove incorrect (and unnecessary) shebangs
+	find ${D}/usr/lib/pypy -name '*.py' -exec sed -i -e '/^#!/d' '{}' +
+
+	# bytecode compile all modules
+	${S}/pypy/translator/goal/pypy-c -m compileall -f -q -d /usr/lib/pypy ${D}/usr/lib/pypy
+
+	# this is where distutils.command.build_ext expects it to be
+	insinto /usr/lib/pypy/lib/python2.7/config
+	doins ${S}/pypy/translator/goal/libpython2.7.dll.a
+
+	dobin ${S}/pypy-config
+	echo -e '#!/bin/sh\nexec /usr/lib/pypy/bin/pypy-c "$@"' > ${D}/usr/bin/pypy
+	chmod +x ${D}/usr/bin/pypy
+
+	# autotools expects headers in PREFIX/include/pythonX.Y
+	dosym . /usr/lib/pypy/include/python2.7
+}
